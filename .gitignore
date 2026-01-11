@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+/dist
+/build
+/*.js
+/*.js.map
+
+# Environment files
+.env
+.env.local
+
+# Testing and coverage
+/coverage
+
+# Editors
+.DS_Store # macOS
+.vscode/ # VS Code configuration
+npm-debug.log*
+yarn-debug.log*
