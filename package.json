@@ -15,6 +15,7 @@
   "scripts": {
     "build": "pkgroll",
     "bench": "vitest bench --reporter=verbose",
+    "test": "vitest",
     "test:single": "tsx demo/simple.ts"
   },
   "devDependencies": {
