@@ -4,6 +4,7 @@
 Parse, validate, and infer types for `body`, `queryStringParameters`, and `pathParameters` — with **minimal runtime overhead** and **full type safety**.
 
 > ✅ **Optimized for performance**: AJV compiles schemas once per cold start, and validation adds only **microseconds of latency**.
+> 🔜 Coming soon: `@kleanjs/sqs`, `@kleanjs/eventbridge`, and more.
 
 ---
 
@@ -39,34 +40,61 @@ npm install @kleanjs/apigateway ajv ajv-formats
 import { JSONSchemaType } from "ajv";
 import { middleware } from "@kleanjs/apigateway";
 
-interface MyData {
-  foo: number;
-  bar?: string;
+interface UserInput {
+  name: string;
+  email: string;
+  age?: number;
 }
 
-const schemaBody: JSONSchemaType<MyData> = {
+const schemaBody: JSONSchemaType<UserInput> = {
   type: "object",
   properties: {
-    foo: { type: "integer" },
-    bar: { type: "string", nullable: true },
+    name: { type: "string", minLength: 1 },
+    email: { type: "string", format: "email" },
+    age: { type: "integer", minimum: 0, nullable: true },
   },
-  required: ["foo"],
+  required: ["name", "email"],
   additionalProperties: false,
 };
 
 export const handler = middleware(
   (event) => {
-    const other = event.queryStringParameters.test;
-    const { foo, bar } = event.body;
-    return { other, foo, bar };
+    return {
+      userName: event.body.name,
+      userEmail: event.body.email,
+    };
   },
   {
     response: {
       type: "json",
     },
     validators: {
-      body: schemaBody,
+      body: userSchema,
     },
   },
 );
 ```
+
+---
+
+## 🏁 Benchmark
+
+Validation performance measured locally with Vitest (`benchmark/benchmark.bench.ts`) using a typical POST event (total duration: 1700 ms):
+
+### Environment
+- **Node.js**: v22.14.0  
+- **OS**: Ubuntu 24.04.3 LTS  
+- **CPU**: AMD Ryzen™ 7 8840HS w/ Radeon™ 780M Graphics × 16  
+
+### Results
+
+| Metric               | `kleanjs/apigateway` | Middy        | Improvement |
+|----------------------|----------------------|--------------|-------------|
+| **Throughput (ops/sec)** | 158,901.54       | 94,748.27    | **1.68x**   |
+| **Mean latency (ms)**    | 0.0063           | 0.0106       | **40% lower** |
+| **P99 latency (ms)**     | 0.0142           | 0.0274       | **48% lower** |
+| **Max latency (ms)**     | 0.9264           | 1.1255       | —           |
+| **Samples**              | 79,451           | 47,375       | —           |
+| **Relative margin of error (rme)** | ±1.27%    | ±1.40%       | More stable |
+
+> ✅ **Conclusion**: `kleanjs/apigateway` delivers higher throughput, lower latency, and better stability than Middy in typical API Gateway validation scenarios.

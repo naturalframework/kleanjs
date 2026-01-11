@@ -13,13 +13,21 @@
     }
   },
   "scripts": {
-    "build": "pkgroll"
+    "build": "pkgroll",
+    "bench": "vitest bench --reporter=verbose",
+    "test:single": "tsx demo/simple.ts"
   },
   "devDependencies": {
+    "@middy/core": "^7.0.2",
+    "@middy/http-error-handler": "^7.0.2",
+    "@middy/http-json-body-parser": "^7.0.2",
+    "@middy/validator": "^7.0.2",
     "@types/aws-lambda": "^8.10.159",
     "@types/node": "^25.0.3",
     "pkgroll": "^2.21.4",
-    "typescript": "^5.9.3"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
   },
   "peerDependencies": {
     "ajv": "^8.17.1",

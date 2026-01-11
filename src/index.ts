@@ -96,7 +96,6 @@ export const middleware = <
   const responseTemplate: APIGatewayProxyResult = {
     statusCode: options.response?.status ?? 200,
     headers: {},
-    isBase64Encoded: false,
     body: "",
   };
 
@@ -127,7 +126,7 @@ export const middleware = <
 
   return async (
     event: APIGatewayProxyEvent,
-    context: Context,
+    context?: Context,
   ): Promise<APIGatewayProxyResult> => {
     try {
       const body = getBody(event);

@@ -1,33 +1,18 @@
-import { JSONSchemaType } from "ajv";
-import { middleware } from "../src/index";
+import { mockEventPOST } from "./schemas";
+import { handler as kleanjsHandler } from "./kleanjs-handler";
+import { handler as middyHandler } from "./middy-handler";
+import { Context } from "aws-lambda";
 
-interface MyData {
-  foo: number;
-  bar?: string;
+async function main() {
+  console.time("kleanjs");
+  const res = await kleanjsHandler(mockEventPOST);
+  console.timeEnd("kleanjs");
+  console.log("resKleanJS", res);
+
+  console.time("middy");
+  const res2 = await middyHandler(mockEventPOST, {} as Context);
+  console.timeEnd("middy");
+  console.log("resMiddy", res2);
 }
 
-const schemaBody: JSONSchemaType<MyData> = {
-  type: "object",
-  properties: {
-    foo: { type: "integer" },
-    bar: { type: "string", nullable: true },
-  },
-  required: ["foo"],
-  additionalProperties: false,
-};
-
-export const handler = middleware(
-  (event) => {
-    const other = event.queryStringParameters.test;
-    const { foo, bar } = event.body;
-    return { other, foo, bar };
-  },
-  {
-    response: {
-      type: "json",
-    },
-    validators: {
-      body: schemaBody,
-    },
-  },
-);
+main();
