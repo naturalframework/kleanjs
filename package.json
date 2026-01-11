@@ -21,7 +21,7 @@
     "pkgroll": "^2.21.4",
     "typescript": "^5.9.3"
   },
-  "dependencies": {
+  "peerDependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
   }
