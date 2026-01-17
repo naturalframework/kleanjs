@@ -29,7 +29,7 @@ This package has no direct dependencies. It relies on two peer dependencies that
 ## 📦 Installation (Coming soon...)
 
 ```bash
-npm install @kleanjs/apigateway ajv ajv-formats
+npm install @kleanjs/core ajv ajv-formats
 ```
 
 ---
@@ -38,7 +38,8 @@ npm install @kleanjs/apigateway ajv ajv-formats
 
 ```typescript
 import { JSONSchemaType } from "ajv";
-import { middleware } from "@kleanjs/apigateway";
+import { middleware } from "@kleanjs/core";
+import { APIGatewayProxyEvent } from "aws-lambda";
 
 interface UserInput {
   name: string;
@@ -65,6 +66,7 @@ export const handler = middleware(
     };
   },
   {
+    event: Use<APIGatewayProxyEvent>(),
     response: {
       type: "json",
     },

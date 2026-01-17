@@ -1,4 +1,4 @@
-import { Ajv, type Options, type JSONSchemaType, ValidateFunction } from "ajv";
+import { type Options, type JSONSchemaType, Ajv, ValidateFunction } from "ajv";
 import addFormats from "ajv-formats";
 import type {
   APIGatewayProxyEvent,
@@ -16,32 +16,28 @@ import {
   transformText,
 } from "./utils/apigateway";
 
-interface DefaultBody {
-  [key: string]: any;
-}
-interface DefaultQuery {
-  [key: string]: any;
-}
-interface DefaultPath {
-  [key: string]: any;
-}
-
-type PropsApiEvent = "body" | "queryStringParameters" | "pathParameters";
-
-type Validators<TBody, TQuery, TPath> = {
-  body?: JSONSchemaType<TBody>;
-  query?: JSONSchemaType<TQuery>;
-  path?: JSONSchemaType<TPath>;
+type TSchemaMap = Record<string, any>;
+type TValidators<V> = {
+  [K in keyof V]: V[K] extends JSONSchemaType<infer T> ? T : any;
 };
+type TCombinedEvent<TEvent, TValidator> = Omit<TEvent, keyof TValidator> &
+  TValidators<TValidator>;
 
-type ValidatedEvent<TEvent, TBody, TQuery, TPath> = Omit<
-  TEvent,
-  PropsApiEvent
-> & {
-  body: TBody;
-  queryStringParameters: TQuery;
-  pathParameters: TPath;
-};
+type TInterface<T> = { __type: T };
+export const Use = <T>(): TInterface<T> => ({}) as any;
+
+interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
+  event?: TInterface<TEvent>;
+  result?: TInterface<TResult>;
+  validators?: TValidators;
+  ajvConfig?: Options;
+  response?: {
+    type?: "json" | "text" | "file" | "redirect";
+    status?: number;
+    contentType?: string;
+    errorHandler?: (error: any) => any;
+  };
+}
 
 const ERROR_DEFAULT = (error: any): APIGatewayProxyResult => {
   console.error(error);
@@ -51,49 +47,29 @@ const ERROR_DEFAULT = (error: any): APIGatewayProxyResult => {
   };
 };
 
-export const middleware = <
-  TBody = DefaultBody,
-  TQuery = DefaultQuery,
-  TPath = DefaultPath,
->(
+export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
   handler: (
-    event: ValidatedEvent<APIGatewayProxyEvent, TBody, TQuery, TPath>,
+    event: TCombinedEvent<TEvent, TValidators>,
     context?: Context,
   ) => any,
-  options: {
-    validators?: Validators<TBody, TQuery, TPath>;
-    ajvConfig?: Options;
-    response?: {
-      type?: "json" | "text" | "file" | "redirect";
-      status?: number;
-      contentType?: string;
-      errorHandler?: (error: any) => APIGatewayProxyResult;
-    };
-  } = {},
+  options: HandlerConfig<TEvent, TResult, TValidators>,
 ) => {
   const validators: {
-    name: PropsApiEvent;
-    validation: ValidateFunction;
+    n: string; // name
+    v: ValidateFunction; // validate function
+    p: boolean; // isParse
   }[] = [];
   const ajv = new Ajv(options.ajvConfig);
   addFormats(ajv);
 
-  if (options.validators?.body) {
-    const validation = ajv.compile(options.validators.body);
-    validators.push({ name: "body", validation });
+  if (options.validators) {
+    for (const [key, schema] of Object.entries(options.validators)) {
+      const v = ajv.compile(schema);
+      validators.push({ n: key, p: key === "body", v });
+    }
   }
 
-  if (options.validators?.path) {
-    const validation = ajv.compile(options.validators.path);
-    validators.push({ name: "pathParameters", validation });
-  }
-
-  if (options.validators?.query) {
-    const validation = ajv.compile(options.validators.query);
-    validators.push({ name: "queryStringParameters", validation });
-  }
-
-  const responseTemplate: APIGatewayProxyResult = {
+  const responseTemplate: any = {
     statusCode: options.response?.status ?? 200,
     headers: {},
     body: "",
@@ -124,26 +100,22 @@ export const middleware = <
 
   const errorHandler = options.response?.errorHandler ?? ERROR_DEFAULT;
 
-  return async (
-    event: APIGatewayProxyEvent,
-    context?: Context,
-  ): Promise<APIGatewayProxyResult> => {
+  return async (rawEvent: TEvent, context?: Context): Promise<TResult> => {
     try {
-      const body = getBody(event);
-      for (const { name, validation } of validators) {
-        validation(event[name]);
+      const overrides: any = {};
+      for (const { n: name, v: validate, p: isParse } of validators) {
+        if (isParse) {
+          const body = getBody(rawEvent as APIGatewayProxyEvent);
+          overrides[name] = body;
+        } else {
+          overrides[name] = (rawEvent as Record<string, any>)[name];
+        }
+        validate(overrides[name]);
       }
 
-      const newEvent: ValidatedEvent<
-        APIGatewayProxyEvent,
-        TBody,
-        TQuery,
-        TPath
-      > = {
-        ...event,
-        body: body as TBody,
-        queryStringParameters: event.queryStringParameters as TQuery,
-        pathParameters: event.pathParameters as TPath,
+      const newEvent: TCombinedEvent<TEvent, TValidators> = {
+        ...rawEvent,
+        ...overrides,
       };
       const data = await handler(newEvent, context);
       const responseBody = transformResponse(data);

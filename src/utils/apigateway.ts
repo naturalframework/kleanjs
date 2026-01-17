@@ -1,4 +1,4 @@
-import { APIGatewayEvent } from "aws-lambda";
+import { APIGatewayProxyEvent } from "aws-lambda";
 
 const HEADER_FORM = "application/x-www-form-urlencoded";
 const HEADER_JSON = "application/json";
@@ -10,7 +10,7 @@ export const RESPONSE_TYPE_OCTET = "application/octet-stream";
 
 const METHODS_WITHOUT_BODY = ["GET", "DELETE", "HEAD", "OPTIONS"];
 
-export const getBody = (event: APIGatewayEvent) => {
+export const getBody = (event: APIGatewayProxyEvent) => {
   if (METHODS_WITHOUT_BODY.includes(event.httpMethod)) {
     return null;
   }
