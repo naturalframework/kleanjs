@@ -25,7 +25,7 @@ This package has no direct dependencies. It relies on two peer dependencies that
 
 ---
 
-## 📦 Installation (Coming soon...)
+## 📦 Installation
 
 ```bash
 npm install @kleanjs/core ajv ajv-formats
@@ -37,7 +37,7 @@ npm install @kleanjs/core ajv ajv-formats
 
 ```typescript
 import { JSONSchemaType } from "ajv";
-import { middleware } from "@kleanjs/core";
+import { middleware, Use } from "@kleanjs/core";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
 interface UserInput {
@@ -95,7 +95,7 @@ export const handler = middleware(
       }
     },
     validators: {
-      body: userSchema,
+      body: schemaBody,
     },
   },
 );
