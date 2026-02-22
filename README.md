@@ -106,12 +106,12 @@ interface HandlerConfig<TEvent, TResult, TValidators> {
 }
 ```
 
-* event: Defines the incoming event type. Uses the `Use<T>()` generic helper. Defaults to `Use<APIGatewayProxyEvent>()`.
-* result: Defines the expected return type. Uses the `Use<T>()` generic helper. Defaults to `Use<APIGatewayProxyResult>()`.
-* validators: A map of schemas where the key corresponds to the event property to validate (e.g., `body`, `queryStringParameters`, `pathParameters`). `kleanjs` automatically parses `event.body` if a schema is provided for it.
-* ajvConfig: Optional configuration object passed directly to the AJV instance (e.g., `{ allErrors: true }`).
-* customResponse: A function to serialize the data returned by your handler. Overrides the default `responseJSON`.
-* errorHandler: A function to intercept errors thrown during validation or execution. Overrides the default `errorHandler`.
+* **event**: Defines the incoming event type. Uses the `Use<T>()` generic helper. Defaults to `Use<APIGatewayProxyEvent>()`.
+* **result**: Defines the expected return type. Uses the `Use<T>()` generic helper. Defaults to `Use<APIGatewayProxyResult>()`.
+* **validators**: A map of schemas where the key corresponds to the event property to validate (e.g., `body`, `queryStringParameters`, `pathParameters`). `kleanjs` automatically parses `event.body` if a schema is provided for it.
+* **ajvConfig**: Optional configuration object passed directly to the AJV instance (e.g., `{ allErrors: true }`).
+* **customResponse**: A function to serialize the data returned by your handler. Overrides the default `responseJSON`.
+* **errorHandler**: A function to intercept errors thrown during validation or execution. Overrides the default `errorHandler`.
 
 ---
 
@@ -123,24 +123,28 @@ By default, `kleanjs` uses `responseJSON`, which stringifies the payload and inj
 
 The package exports the following standard formatters and their corresponding header constants (`HEADER_TYPE_JSON`, `HEADER_TYPE_HTML`, `HEADER_TYPE_OCTET`, `HEADER_TYPE_PLAIN`):
 
-* responseJSON: Serializes objects to JSON strings.
-* responseHTML: Returns raw HTML strings.
-* responseMediaFile: Handles binary data and Buffer objects, automatically setting `isBase64Encoded: true`.
-* responseRedirect: Generates a 301/302 redirect response given a URL.
+* **responseJSON**: Serializes objects to JSON strings.
+* **responseHTML**: Returns raw HTML strings.
+* **responseMediaFile**: Handles binary data and Buffer objects, automatically setting `isBase64Encoded: true`.
+* **responseRedirect**: Generates a 301/302 redirect response given a URL.
 
+
+```typescript
 import { middleware, Use, responseMediaFile } from "@kleanjs/core";
 import { APIGatewayProxyEvent } from "aws-lambda";
 
 export const handler = middleware(
   async (event) => {
     const pdfBuffer = await generatePDF();
-    return pdfBuffer; 
+    return pdfBuffer;
   },
   {
     event: Use<APIGatewayProxyEvent>(),
     customResponse: responseMediaFile,
   }
 );
+```
+> View the source code for all built-in formatters in [src/utils/apigateway.ts](https://github.com/naturalframework/kleanjs/blob/main/src/utils/apigateway.ts#L42).
 
 #### Creating a Custom Formatter
 A formatter simply merges your data with the base response template:
