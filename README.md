@@ -1,10 +1,9 @@
 # ✨ kleanjs — Type-safe middleware for AWS Lambda with JSON Schema
 
 **Validate and type your Lambda events effortlessly** using AJV and TypeScript.  
-Parse, validate, and infer types for `body`, `queryStringParameters`, and `pathParameters` — with **minimal runtime overhead** and **full type safety**.
+Parse, validate, and infer types for `body`, `queryStringParameters`, `pathParameters` and more — with **minimal runtime overhead** and **full type safety**.
 
 > ✅ **Optimized for performance**: AJV compiles schemas once per cold start, and validation adds only **microseconds of latency**.
-> 🔜 Coming soon: `@kleanjs/sqs`, `@kleanjs/eventbridge`, and more.
 
 ---
 
@@ -39,7 +38,7 @@ npm install @kleanjs/core ajv ajv-formats
 ```typescript
 import { JSONSchemaType } from "ajv";
 import { middleware } from "@kleanjs/core";
-import { APIGatewayProxyEvent } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
 interface UserInput {
   name: string;
@@ -67,8 +66,33 @@ export const handler = middleware(
   },
   {
     event: Use<APIGatewayProxyEvent>(),
+    result: Use<APIGatewayProxyResult>(),
     response: {
       type: "json",
+      errorHandler: (error, responseTemplate) => {
+        const isValidationError = !!error.errorsAJV;
+        console.error(error);
+      
+        const response = {
+          error: {
+            ...(isValidationError
+              ? {
+                  type: "ValidationException",
+                  message: "Invalid request parameters",
+                  details: error.errorsAJV,
+                }
+              : { type: "InternalServerException", message: "Unknow Error" }),
+          },
+        };
+      
+        const statusCode = error.status ?? 500;
+      
+        return {
+          statusCode,
+          body: JSON.stringify(response),
+          headers: responseTemplate.headers,
+        };
+      }
     },
     validators: {
       body: userSchema,
@@ -99,4 +123,4 @@ Validation performance measured locally with Vitest (`benchmark/benchmark.bench.
 | **Samples**              | 79,451           | 47,375       | —           |
 | **Relative margin of error (rme)** | ±1.27%    | ±1.40%       | More stable |
 
-> ✅ **Conclusion**: `kleanjs/apigateway` delivers higher throughput, lower latency, and better stability than Middy in typical API Gateway validation scenarios.
+> ✅ **Conclusion**: `kleanjs/core` delivers higher throughput, lower latency, and better stability than Middy in typical API Gateway validation scenarios.

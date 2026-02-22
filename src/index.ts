@@ -35,15 +35,35 @@ interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
     type?: "json" | "text" | "file" | "redirect";
     status?: number;
     contentType?: string;
-    errorHandler?: (error: any) => any;
+    errorHandler?: (error: any, responseTemplate: TResult) => any;
   };
 }
 
-const ERROR_DEFAULT = (error: any): APIGatewayProxyResult => {
+const ERROR_DEFAULT = (
+  error: any,
+  responseTemplate: APIGatewayProxyResult,
+): APIGatewayProxyResult => {
+  const isValidationError = !!error.errorsAJV;
   console.error(error);
+
+  const response = {
+    error: {
+      ...(isValidationError
+        ? {
+            type: "ValidationException",
+            message: "Invalid request parameters",
+            details: error.errorsAJV,
+          }
+        : { type: "InternalServerException", message: "Unknow Error" }),
+    },
+  };
+
+  const statusCode = error.status ?? 500;
+
   return {
-    statusCode: 500,
-    body: "Internal Server Error",
+    statusCode,
+    body: JSON.stringify(response),
+    headers: responseTemplate.headers,
   };
 };
 
@@ -110,7 +130,13 @@ export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
         } else {
           overrides[name] = (rawEvent as Record<string, any>)[name];
         }
-        validate(overrides[name]);
+        const valid = validate(overrides[name]);
+        if (!valid) {
+          throw {
+            errorsAJV: validate.errors,
+            statusCode: 400,
+          };
+        }
       }
 
       const newEvent: TCombinedEvent<TEvent, TValidators> = {
@@ -122,7 +148,7 @@ export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
 
       return { ...responseTemplate, body: responseBody };
     } catch (error) {
-      return errorHandler(error);
+      return errorHandler(error, responseTemplate);
     }
   };
 };
