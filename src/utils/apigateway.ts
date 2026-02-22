@@ -1,12 +1,12 @@
-import { APIGatewayProxyEvent } from "aws-lambda";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
 const HEADER_FORM = "application/x-www-form-urlencoded";
 const HEADER_JSON = "application/json";
 
-export const RESPONSE_TYPE_JSON = "application/json; charset=utf-8";
-export const RESPONSE_TYPE_PLAIN = "text/plain; charset=utf-8";
-export const RESPONSE_TYPE_HTML = "text/html; charset=utf-8";
-export const RESPONSE_TYPE_OCTET = "application/octet-stream";
+export const HEADER_TYPE_JSON = "application/json; charset=utf-8";
+export const HEADER_TYPE_PLAIN = "text/plain; charset=utf-8";
+export const HEADER_TYPE_HTML = "text/html; charset=utf-8";
+export const HEADER_TYPE_OCTET = "application/octet-stream";
 
 const METHODS_WITHOUT_BODY = ["GET", "DELETE", "HEAD", "OPTIONS"];
 
@@ -39,48 +39,53 @@ export const getBody = (event: APIGatewayProxyEvent) => {
   }
 };
 
-export const responseJSON = (body: Record<string, any>, statusCode = 200) => {
+export const responseJSON = <TResult = APIGatewayProxyResult>(
+  data: any,
+  statusCode = 200,
+): TResult => {
   return {
     statusCode,
     headers: {
-      "Content-Type": HEADER_JSON,
+      "Content-Type": HEADER_TYPE_JSON,
     },
-    body: JSON.stringify(body),
-  };
+    body: typeof data === "string" ? data : JSON.stringify(data),
+  } as TResult;
 };
 
-export const responseHTML = (body: string, statusCode = 200) => {
+export const responseHTML = <TResult = APIGatewayProxyEvent>(
+  data: any,
+  statusCode = 200,
+) => {
   return {
     statusCode,
     headers: {
-      "Content-Type": "text/html; charset=utf-8",
+      "Content-Type": HEADER_TYPE_HTML,
     },
-    body: `<!DOCTYPE html>${body}`,
-  };
+    body: `<!DOCTYPE html>${data}`,
+  } as TResult;
 };
 
-export const responseRedirect = (url: string, body = "") => {
+export const responseRedirect = <TResult = APIGatewayProxyResult>(
+  data: any,
+  statusCode = 302,
+) => {
   return {
-    statusCode: 302,
+    statusCode,
     headers: {
-      Location: url,
+      Location: data,
     },
-    body,
-  };
+    body: "",
+  } as TResult;
 };
 
-export const transformJSON = (
-  data: Record<string, any> | Record<string, any>[],
-): string => {
-  return JSON.stringify(data);
-};
-
-export const transformMediaFile = (data: Buffer): string => {
-  const base64Body = data.toString("base64");
-  // header: isBase64Encoded: true
-  return base64Body;
-};
-
-export const transformText = (data: any): string => {
-  return `${data}`;
+export const responseMediaFile = <TResult = APIGatewayProxyResult>(
+  data: any,
+  statusCode = 200,
+) => {
+  return {
+    statusCode,
+    headers: { "Content-Type": HEADER_TYPE_OCTET },
+    isBase64Encoded: true,
+    body: Buffer.isBuffer(data) ? data.toString("base64") : String(data),
+  } as TResult;
 };

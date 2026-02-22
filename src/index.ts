@@ -8,13 +8,28 @@ import type {
 
 import {
   getBody,
-  RESPONSE_TYPE_JSON,
-  RESPONSE_TYPE_OCTET,
-  RESPONSE_TYPE_PLAIN,
-  transformJSON,
-  transformMediaFile,
-  transformText,
+  HEADER_TYPE_JSON,
+  HEADER_TYPE_HTML,
+  HEADER_TYPE_OCTET,
+  HEADER_TYPE_PLAIN,
+  responseJSON,
+  responseHTML,
+  responseMediaFile,
+  responseRedirect,
 } from "./utils/apigateway";
+import { ErrorAJV } from "./utils/errorAJV";
+
+export {
+  ErrorAJV,
+  responseJSON,
+  responseHTML,
+  responseMediaFile,
+  responseRedirect,
+  HEADER_TYPE_JSON,
+  HEADER_TYPE_HTML,
+  HEADER_TYPE_OCTET,
+  HEADER_TYPE_PLAIN,
+};
 
 type TSchemaMap = Record<string, any>;
 type TValidators<V> = {
@@ -31,25 +46,12 @@ interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
   result?: TInterface<TResult>;
   validators?: TValidators;
   ajvConfig?: Options;
-  response?: {
-    type?: "json" | "text" | "file" | "redirect";
-    status?: number;
-    contentType?: string;
-    errorHandler?: (error: any, responseTemplate: TResult) => any;
-  };
+  customResponse?: (data: any) => TResult;
+  errorHandler?: (error: any) => any;
 }
 
-interface CustomError {
-  errorsAJV: ValidateFunction["errors"];
-  eventAttribute: string;
-  statusCode: number;
-}
-
-const ERROR_DEFAULT = (
-  error: CustomError,
-  responseTemplate: APIGatewayProxyResult,
-): APIGatewayProxyResult => {
-  const isValidationError = !!error.errorsAJV;
+export const errorHandler = (error: ErrorAJV): APIGatewayProxyResult => {
+  const isValidationError = error instanceof ErrorAJV;
   console.error(error);
 
   const response = {
@@ -58,9 +60,9 @@ const ERROR_DEFAULT = (
         ? {
             type: "ValidationException",
             message: "Invalid request parameters",
-            details: error.errorsAJV?.map((err) => {
+            details: error.details?.map((err) => {
               return {
-                location: error.eventAttribute,
+                location: error.location,
                 field: err.instancePath.replace(/^\//, "") || "root",
                 rule: err.keyword,
                 message: err.message,
@@ -76,11 +78,17 @@ const ERROR_DEFAULT = (
   return {
     statusCode,
     body: JSON.stringify(response),
-    headers: responseTemplate.headers,
+    headers: {
+      "Content-Type": HEADER_TYPE_JSON,
+    },
   };
 };
 
-export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
+export const middleware = <
+  TEvent = APIGatewayProxyEvent,
+  TResult = APIGatewayProxyResult,
+  TValidators extends TSchemaMap = TSchemaMap,
+>(
   handler: (
     event: TCombinedEvent<TEvent, TValidators>,
     context?: Context,
@@ -102,36 +110,8 @@ export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
     }
   }
 
-  const responseTemplate: any = {
-    statusCode: options.response?.status ?? 200,
-    headers: {},
-    body: "",
-  };
-
-  const responseType = options.response?.type ?? "text";
-  let contentType = "";
-  let transformResponse: (body: any) => string;
-
-  if (responseType === "json") {
-    contentType = RESPONSE_TYPE_JSON;
-    transformResponse = transformJSON;
-  }
-
-  if (responseType === "text") {
-    contentType = RESPONSE_TYPE_PLAIN;
-    transformResponse = transformText;
-  }
-
-  if (responseType === "file") {
-    contentType = RESPONSE_TYPE_OCTET;
-    transformResponse = transformMediaFile;
-    responseTemplate.isBase64Encoded = true;
-  }
-
-  responseTemplate.headers!["Content-Type"] =
-    options.response?.contentType ?? contentType;
-
-  const errorHandler = options.response?.errorHandler ?? ERROR_DEFAULT;
+  const errorCb = options.errorHandler ?? errorHandler;
+  const customResponse = options.customResponse ?? responseJSON<TResult>;
 
   return async (rawEvent: TEvent, context?: Context): Promise<TResult> => {
     try {
@@ -143,13 +123,10 @@ export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
         } else {
           overrides[name] = (rawEvent as Record<string, any>)[name];
         }
+
         const valid = validate(overrides[name]);
         if (!valid) {
-          throw {
-            errorsAJV: validate.errors,
-            eventAttribute: name,
-            statusCode: 400,
-          };
+          throw new ErrorAJV(name, validate.errors);
         }
       }
 
@@ -158,11 +135,9 @@ export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
         ...overrides,
       };
       const data = await handler(newEvent, context);
-      const responseBody = transformResponse(data);
-
-      return { ...responseTemplate, body: responseBody };
-    } catch (error) {
-      return errorHandler(error, responseTemplate);
+      return customResponse(data);
+    } catch (error: any) {
+      return errorCb(error);
     }
   };
 };

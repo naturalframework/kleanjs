@@ -6,11 +6,11 @@ import { Context } from "aws-lambda";
 
 const eventContext = {} as Context;
 
-/* // Warm-up
-for (let i = 0; i < 100; i++) {
-  invokeKleanJS();
-  invokeMiddy();
-} */
+// Warm-up
+for (let i = 0; i < 5; i++) {
+  await kleanjsHandler({ ...mockEventPOST }, eventContext);
+  await middyHandler({ ...mockEventPOST }, eventContext);
+}
 
 describe("Validation Performance: POST Event", () => {
   bench("kleanjs/apigateway", async () => {

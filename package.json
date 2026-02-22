@@ -1,6 +1,6 @@
 {
   "name": "@kleanjs/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
@@ -38,8 +38,5 @@
   "peerDependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
-  },
-  "dependencies": {
-    "typia": "^11.0.0"
   }
 }

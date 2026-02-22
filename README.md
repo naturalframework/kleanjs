@@ -10,7 +10,7 @@ Parse, validate, and infer types for `body`, `queryStringParameters`, `pathParam
 ## 🚀 Features
 
 - ✅ **Automatic TypeScript inference** from AJV `JSONSchemaType<T>`
-- ✅ Validate `body`, `query`, and `path` independently (any combination)
+- ✅ Validate `body`, `queryStringParameters`, `pathParameters` and others independently (any combination)
 - ✅ Uses **AJV under the hood** (fastest JSON Schema validator)
 - ✅ **No dependencies** beyond AJV — pure, minimal, and tree-shakeable
 - ✅ Compatible with **native AWS Lambda handlers**
@@ -37,7 +37,7 @@ npm install @kleanjs/core ajv ajv-formats
 
 ```typescript
 import { JSONSchemaType } from "ajv";
-import { middleware, Use } from "@kleanjs/core";
+import { middleware, Use, errorHandler, responseJSON } from "@kleanjs/core";
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 
 interface UserInput {
@@ -65,39 +65,140 @@ export const handler = middleware(
     };
   },
   {
-    event: Use<APIGatewayProxyEvent>(),
-    result: Use<APIGatewayProxyResult>(),
-    response: {
-      type: "json",
-      errorHandler: (error, responseTemplate) => {
-        const isValidationError = !!error.errorsAJV;
-        console.error(error);
-      
-        const response = {
-          error: {
-            ...(isValidationError
-              ? {
-                  type: "ValidationException",
-                  message: "Invalid request parameters",
-                  details: error.errorsAJV,
-                }
-              : { type: "InternalServerException", message: "Unknow Error" }),
-          },
-        };
-      
-        const statusCode = error.statusCode ?? 500;
-      
-        return {
-          statusCode,
-          body: JSON.stringify(response),
-          headers: responseTemplate.headers,
-        };
-      }
-    },
+    // ajvConfig: Options (import type { Options } from 'ajv')
+    event: Use<APIGatewayProxyEvent>(), // Default: Use<APIGatewayProxyEvent>()
+    result: Use<APIGatewayProxyResult>(), // Default: Use<APIGatewayProxyResult>()
+    errorHandler, // Default: errorHandler
+    customResponse: responseJSON, // Default: responseJSON
     validators: {
       body: schemaBody,
     },
   },
+);
+```
+
+---
+
+## API Reference
+
+### middleware(handler, options)
+
+The core wrapper function that intercepts the Lambda execution, validates the incoming event based on the provided schemas, and formats the response.
+
+Arguments:
+1. handler: Your business logic function. The `event` parameter is deeply typed based on the schemas provided in the `validators` object.
+2. options: An object matching the `HandlerConfig` interface.
+
+---
+
+### HandlerConfig
+
+The configuration object passed to the middleware to dictate how the event is validated and how the response is constructed.
+
+```typescript
+interface HandlerConfig<TEvent, TResult, TValidators> {
+  event?: Use<TEvent>;
+  result?: Use<TResult>;
+  validators?: TValidators;
+  ajvConfig?: Options;
+  errorHandler?: (error: any) => any;
+  customResponse?: (data: any) => TResult;
+}
+```
+
+* event: Defines the incoming event type. Uses the `Use<T>()` generic helper. Defaults to `Use<APIGatewayProxyEvent>()`.
+* result: Defines the expected return type. Uses the `Use<T>()` generic helper. Defaults to `Use<APIGatewayProxyResult>()`.
+* validators: A map of schemas where the key corresponds to the event property to validate (e.g., `body`, `queryStringParameters`, `pathParameters`). `kleanjs` automatically parses `event.body` if a schema is provided for it.
+* ajvConfig: Optional configuration object passed directly to the AJV instance (e.g., `{ allErrors: true }`).
+* customResponse: A function to serialize the data returned by your handler. Overrides the default `responseJSON`.
+* errorHandler: A function to intercept errors thrown during validation or execution. Overrides the default `errorHandler`.
+
+---
+
+### customResponse (Formatters)
+
+Formatters are pure functions that take the raw data returned by your handler and serialize it into the expected `APIGatewayProxyResult` format. 
+
+By default, `kleanjs` uses `responseJSON`, which stringifies the payload and injects the `application/json` content type.
+
+The package exports the following standard formatters and their corresponding header constants (`HEADER_TYPE_JSON`, `HEADER_TYPE_HTML`, `HEADER_TYPE_OCTET`, `HEADER_TYPE_PLAIN`):
+
+* responseJSON: Serializes objects to JSON strings.
+* responseHTML: Returns raw HTML strings.
+* responseMediaFile: Handles binary data and Buffer objects, automatically setting `isBase64Encoded: true`.
+* responseRedirect: Generates a 301/302 redirect response given a URL.
+
+import { middleware, Use, responseMediaFile } from "@kleanjs/core";
+import { APIGatewayProxyEvent } from "aws-lambda";
+
+export const handler = middleware(
+  async (event) => {
+    const pdfBuffer = await generatePDF();
+    return pdfBuffer; 
+  },
+  {
+    event: Use<APIGatewayProxyEvent>(),
+    customResponse: responseMediaFile,
+  }
+);
+
+#### Creating a Custom Formatter
+A formatter simply merges your data with the base response template:
+
+```typescript
+import { APIGatewayProxyResult } from "aws-lambda";
+
+export const responseXML = (data: any): APIGatewayProxyResult => {
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/xml" },
+    body: convertToXML(data),
+  };
+};
+```
+
+---
+
+### errorHandler and ErrorAJV
+
+`kleanjs` ships with a robust default error handler designed for RESTful APIs. It differentiates between validation errors and internal server errors to prevent sensitive infrastructure details from leaking.
+
+If a validation fails, the middleware automatically throws an `ErrorAJV` instance. The default error handler catches it and constructs a `400 Bad Request` response detailing the exact location, field, and rule that failed.
+
+#### Standard Error Response (Validation Failure)
+
+```json
+{
+  "error": {
+    "type": "ValidationException",
+    "message": "Invalid request parameters",
+    "details": [
+      {
+        "location": "body",
+        "field": "email",
+        "rule": "format",
+        "message": "must match format \"email\""
+      }
+    ]
+  }
+}
+```
+
+#### Throwing Custom Business Errors
+You can throw errors containing a `statusCode` property from your handler. The default error handler will respect the code and hide the internal stack trace:
+
+```typescript
+export const handler = middleware(
+  async (event) => {
+    const user = await db.find(event.pathParameters.id);
+    
+    if (!user) {
+      throw { statusCode: 404, message: "User not found" };
+    }
+    
+    return user;
+  },
+  { validators: { /* ... */ } }
 );
 ```
 

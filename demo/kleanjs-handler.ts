@@ -1,6 +1,5 @@
-import { middleware, Use } from "../src";
+import { middleware } from "../src";
 import { userSchema } from "../demo/schemas";
-import { APIGatewayProxyEvent } from "aws-lambda";
 
 export const handler = middleware(
   (event) => {
@@ -10,10 +9,6 @@ export const handler = middleware(
     };
   },
   {
-    event: Use<APIGatewayProxyEvent>(),
-    response: {
-      type: "json",
-    },
     validators: {
       body: userSchema,
     },
