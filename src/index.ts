@@ -39,8 +39,14 @@ interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
   };
 }
 
+interface CustomError {
+  errorsAJV: ValidateFunction["errors"];
+  eventAttribute: string;
+  statusCode: number;
+}
+
 const ERROR_DEFAULT = (
-  error: any,
+  error: CustomError,
   responseTemplate: APIGatewayProxyResult,
 ): APIGatewayProxyResult => {
   const isValidationError = !!error.errorsAJV;
@@ -52,13 +58,20 @@ const ERROR_DEFAULT = (
         ? {
             type: "ValidationException",
             message: "Invalid request parameters",
-            details: error.errorsAJV,
+            details: error.errorsAJV?.map((err) => {
+              return {
+                location: error.eventAttribute,
+                field: err.instancePath.replace(/^\//, "") || "root",
+                rule: err.keyword,
+                message: err.message,
+              };
+            }),
           }
         : { type: "InternalServerException", message: "Unknow Error" }),
     },
   };
 
-  const statusCode = error.status ?? 500;
+  const statusCode = error.statusCode ?? 500;
 
   return {
     statusCode,
@@ -134,6 +147,7 @@ export const middleware = <TEvent, TResult, TValidators extends TSchemaMap>(
         if (!valid) {
           throw {
             errorsAJV: validate.errors,
+            eventAttribute: name,
             statusCode: 400,
           };
         }

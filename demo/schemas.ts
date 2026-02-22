@@ -33,3 +33,18 @@ export const mockEventPOST: APIGatewayProxyEvent = {
   multiValueHeaders: {},
   multiValueQueryStringParameters: {},
 };
+
+export const mockBadEventPOST: APIGatewayProxyEvent = {
+  body: JSON.stringify({ name: "", email: "jesus", age: 32 }),
+  headers: { "Content-Type": "application/json" },
+  httpMethod: "POST",
+  isBase64Encoded: false,
+  path: "/users",
+  pathParameters: null,
+  queryStringParameters: null,
+  requestContext: {} as any,
+  resource: "",
+  stageVariables: null,
+  multiValueHeaders: {},
+  multiValueQueryStringParameters: {},
+};

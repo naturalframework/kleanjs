@@ -85,7 +85,7 @@ export const handler = middleware(
           },
         };
       
-        const statusCode = error.status ?? 500;
+        const statusCode = error.statusCode ?? 500;
       
         return {
           statusCode,
