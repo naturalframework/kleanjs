@@ -20,6 +20,7 @@ import {
 import { AJVError, errorHandler, EventError } from "./errors";
 
 export {
+  getBody,
   AJVError,
   EventError,
   errorHandler,
@@ -34,19 +35,36 @@ export {
 };
 
 type TSchemaMap = Record<string, any>;
-type TValidators<V> = {
-  [K in keyof V]: V[K] extends JSONSchemaType<infer T> ? T : any;
-};
-type TCombinedEvent<TEvent, TValidator> = Omit<TEvent, keyof TValidator> &
-  TValidators<TValidator>;
 
 type TInterface<T> = { __type: T };
 export const Use = <T>(): TInterface<T> => ({}) as any;
 
-interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
+type TExtractContract<C> = {
+  [K in keyof C]: C[K] extends TInterface<infer T> ? T : any;
+};
+
+type TExtractValidator<V> = {
+  [K in keyof V]: V[K] extends JSONSchemaType<infer T> ? T : any;
+};
+
+type TCombinedEvent<TEvent, TContracts, TValidators> = Omit<
+  TEvent,
+  keyof TValidators | keyof TContracts
+> &
+  TExtractContract<TContracts> &
+  TExtractValidator<TValidators>;
+
+interface HandlerConfig<
+  TEvent = any,
+  TResult = any,
+  TContracts = TSchemaMap,
+  TValidators = TSchemaMap,
+> {
   event?: TInterface<TEvent>;
   result?: TInterface<TResult>;
+  contracts?: TContracts;
   validators?: TValidators;
+  transformers?: Record<string, (event: any) => any>;
   ajvConfig?: Options;
   customResponse?: (data: any) => TResult;
   errorHandler?: (error: any) => any;
@@ -55,50 +73,62 @@ interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
 export const middleware = <
   TEvent = APIGatewayProxyEvent,
   TResult = APIGatewayProxyResult,
-  TValidators extends TSchemaMap = TSchemaMap,
+  TContracts extends Record<string, TInterface<any>> = any,
+  TValidators extends TSchemaMap = any,
 >(
   handler: (
-    event: TCombinedEvent<TEvent, TValidators>,
+    event: TCombinedEvent<TEvent, TContracts, TValidators>,
     context?: Context,
   ) => any,
-  options: HandlerConfig<TEvent, TResult, TValidators>,
+  options: HandlerConfig<TEvent, TResult, TContracts, TValidators>,
 ) => {
-  const validators: {
+  // COLD START
+  const schemaActions: {
     n: string; // name
-    v: ValidateFunction; // validate function
-    p: boolean; // isParse
+    t: (ev: any) => any; // transformer function
+    v?: ValidateFunction; // validate function
   }[] = [];
-  const ajv = new Ajv(options.ajvConfig);
-  addFormats(ajv);
 
-  if (options.validators) {
-    for (const [key, schema] of Object.entries(options.validators)) {
-      const v = ajv.compile(schema);
-      validators.push({ n: key, p: key === "body", v });
-    }
+  const validatorEntries = options.validators
+    ? Object.keys(options.validators)
+    : [];
+  const contractKeys = options.contracts ? Object.keys(options.contracts) : [];
+  const allKeys = new Set([...contractKeys, ...validatorEntries]);
+
+  let ajv: Ajv | null = null;
+  if (validatorEntries.length > 0) {
+    ajv = new Ajv(options.ajvConfig);
+    addFormats(ajv);
+  }
+
+  for (const key of allKeys) {
+    const schema = options.validators?.[key];
+    const transformer = options.transformers?.[key] ?? ((ev: any) => ev[key]);
+
+    schemaActions.push({
+      n: key,
+      t: transformer,
+      v: ajv && schema ? ajv.compile(schema) : undefined,
+    });
   }
 
   const errorCb = options.errorHandler ?? errorHandler;
   const customResponse = options.customResponse ?? responseJSON<TResult>;
 
   return async (rawEvent: TEvent, context?: Context): Promise<TResult> => {
+    // RUNTIME
     try {
       const overrides: any = {};
-      for (const { n: name, v: validate, p: isParse } of validators) {
-        if (isParse) {
-          const body = getBody(rawEvent as APIGatewayProxyEvent);
-          overrides[name] = body;
-        } else {
-          overrides[name] = (rawEvent as Record<string, any>)[name];
-        }
 
-        const valid = validate(overrides[name]);
-        if (!valid) {
-          throw new AJVError(name, validate.errors ?? []);
+      for (const action of schemaActions) {
+        const data = action.t(rawEvent);
+        if (action.v && !action.v(data)) {
+          throw new AJVError(action.n, action.v.errors ?? []);
         }
+        overrides[action.n] = data;
       }
 
-      const newEvent: TCombinedEvent<TEvent, TValidators> = {
+      const newEvent: TCombinedEvent<TEvent, TContracts, TValidators> = {
         ...rawEvent,
         ...overrides,
       };
