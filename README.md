@@ -163,11 +163,11 @@ export const responseXML = (data: any): APIGatewayProxyResult => {
 
 ---
 
-### errorHandler and ErrorAJV
+### errorHandler, AJVError, and EventError
 
-`kleanjs` ships with a robust default error handler designed for RESTful APIs. It differentiates between validation errors and internal server errors to prevent sensitive infrastructure details from leaking.
+`kleanjs` ships with a robust default error handler designed for RESTful APIs. It differentiates between validation errors, controlled business errors, and internal server errors to prevent sensitive infrastructure details from leaking.
 
-If a validation fails, the middleware automatically throws an `ErrorAJV` instance. The default error handler catches it and constructs a `400 Bad Request` response detailing the exact location, field, and rule that failed.
+If a validation fails, the middleware automatically throws an `AJVError` instance. The default error handler catches it and constructs a `400 Bad Request` response detailing the exact location, field, and rule that failed.
 
 #### Standard Error Response (Validation Failure)
 
@@ -186,23 +186,83 @@ If a validation fails, the middleware automatically throws an `ErrorAJV` instanc
     ]
   }
 }
-```
+``
 
 #### Throwing Custom Business Errors
-You can throw errors containing a `statusCode` property from your handler. The default error handler will respect the code and hide the internal stack trace:
+
+You can throw controlled errors using the `EventError` class. The default error handler will respect the status code and type, mapping them directly to the JSON response while hiding internal stack traces. Any other unhandled error will default to a 500 Internal Server Error.
+
+The `EventError` constructor supports two signatures for flexibility: a simple string for quick errors, or a configuration object for precise control over the HTTP status and exception type.
 
 ```typescript
+import { middleware, EventError } from "@kleanjs/core";
+
 export const handler = middleware(
   async (event) => {
+    if (!event.body.name) {
+      throw new EventError("Name is required but validation was skipped");
+    }
+
     const user = await db.find(event.pathParameters.id);
     
     if (!user) {
-      throw { statusCode: 404, message: "User not found" };
+      throw new EventError({
+        message: "User not found in the database",
+        statusCode: 404,
+        type: "UserNotFoundException"
+      });
     }
     
     return user;
   },
   { validators: { /* ... */ } }
+);
+```
+
+#### Extending EventError for Custom Domains
+
+For large applications, throwing generic `EventError` instances can become repetitive. You can extend `EventError` to create highly specific, domain-driven exceptions (e.g., database errors, external API timeouts) that encapsulate their own status codes and types.
+
+This approach keeps your business logic clean and enforces a consistent error taxonomy across your microservices.
+
+```typescript
+import { EventError } from "@kleanjs/core";
+
+export class DBError extends EventError {
+  constructor(entity: string, operation: "insert" | "update" | "delete") {
+    super({
+      message: `Database conflict occurred while attempting to ${operation} ${entity}`,
+      statusCode: 409,
+      type: "DatabaseConflictException"
+    });
+  }
+}
+```
+
+You can then throw this customized error directly inside your handler. The `kleanjs` middleware will automatically catch it, unpack the prototype, and format the HTTP response without exposing underlying database engine logs.
+
+```typescript
+import { middleware, Use } from "@kleanjs/core";
+import { APIGatewayProxyEvent } from "aws-lambda";
+import { DBError } from "./errors/DBError";
+
+export const handler = middleware(
+  async (event) => {
+    const { email } = event.body;
+
+    const existingUser = await db.findByEmail(email);
+    
+    if (existingUser) {
+      throw new DBError("User", "insert");
+    }
+
+    const newUser = await db.insert({ email });
+    return newUser;
+  },
+  { 
+    event: Use<APIGatewayProxyEvent>(),
+    validators: { /* ... */ } 
+  }
 );
 ```
 

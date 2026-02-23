@@ -17,10 +17,12 @@ import {
   responseMediaFile,
   responseRedirect,
 } from "./utils/apigateway";
-import { ErrorAJV } from "./utils/errorAJV";
+import { AJVError, errorHandler, EventError } from "./errors";
 
 export {
-  ErrorAJV,
+  AJVError,
+  EventError,
+  errorHandler,
   responseJSON,
   responseHTML,
   responseMediaFile,
@@ -49,40 +51,6 @@ interface HandlerConfig<TEvent = any, TResult = any, TValidators = TSchemaMap> {
   customResponse?: (data: any) => TResult;
   errorHandler?: (error: any) => any;
 }
-
-export const errorHandler = (error: ErrorAJV): APIGatewayProxyResult => {
-  const isValidationError = error instanceof ErrorAJV;
-  console.error(error);
-
-  const response = {
-    error: {
-      ...(isValidationError
-        ? {
-            type: "ValidationException",
-            message: "Invalid request parameters",
-            details: error.details?.map((err) => {
-              return {
-                location: error.location,
-                field: err.instancePath.replace(/^\//, "") || "root",
-                rule: err.keyword,
-                message: err.message,
-              };
-            }),
-          }
-        : { type: "InternalServerException", message: "Unknow Error" }),
-    },
-  };
-
-  const statusCode = error.statusCode ?? 500;
-
-  return {
-    statusCode,
-    body: JSON.stringify(response),
-    headers: {
-      "Content-Type": HEADER_TYPE_JSON,
-    },
-  };
-};
 
 export const middleware = <
   TEvent = APIGatewayProxyEvent,
@@ -126,7 +94,7 @@ export const middleware = <
 
         const valid = validate(overrides[name]);
         if (!valid) {
-          throw new ErrorAJV(name, validate.errors);
+          throw new AJVError(name, validate.errors ?? []);
         }
       }
 
