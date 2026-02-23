@@ -79,7 +79,7 @@ export const handler = middleware(
 
 ---
 
-## API Reference
+## 📖 API Reference
 
 ### middleware(handler, options)
 
@@ -163,7 +163,7 @@ export const responseXML = (data: any): APIGatewayProxyResult => {
 
 ---
 
-### errorHandler, AJVError, and EventError
+### 🛡️ errorHandler, AJVError, and EventError
 
 `kleanjs` ships with a robust default error handler designed for RESTful APIs. It differentiates between validation errors, controlled business errors, and internal server errors to prevent sensitive infrastructure details from leaking.
 
@@ -186,7 +186,7 @@ If a validation fails, the middleware automatically throws an `AJVError` instanc
     ]
   }
 }
-``
+```
 
 #### Throwing Custom Business Errors
 
