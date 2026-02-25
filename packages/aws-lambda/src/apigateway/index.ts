@@ -1,5 +1,5 @@
 import type { APIGatewayProxyEvent, Context, APIGatewayProxyResult } from "aws-lambda";
-import { middleware as coreMiddleware, Use, AJVError, EventError } from "@kleanjs/core";
+import { middleware as coreMiddleware, Use, AJVSimpleError, AJVFullError, EventError } from "@kleanjs/core";
 import type { TCombinedEvent, HandlerConfig, TSchemaMap } from "@kleanjs/core";
 import { getBody, responseJSON } from "./utils";
 
@@ -24,4 +24,4 @@ export const middleware = <
 };
 
 export * from "./utils";
-export { Use, AJVError, EventError };
+export { Use, AJVSimpleError, AJVFullError, EventError };

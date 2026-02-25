@@ -1,5 +1,5 @@
 import type { SQSEvent, SQSBatchResponse, Context, SQSRecord } from "aws-lambda";
-import { middleware as coreMiddleware, Use, AJVError, EventError } from "@kleanjs/core";
+import { middleware as coreMiddleware, Use, AJVSimpleError, AJVFullError, EventError } from "@kleanjs/core";
 import type { TCombinedEvent, HandlerConfig, TSchemaMap } from "@kleanjs/core";
 import { getBody } from "./utils";
 
@@ -60,4 +60,4 @@ export const middlewareSeries = <
   };
 };
 
-export { Use, AJVError, EventError };
+export { Use, AJVSimpleError, AJVFullError, EventError };

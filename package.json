@@ -8,7 +8,10 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "bench": "turbo run bench",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "publish:core": "npm publish -w @kleanjs/core --access public",
+    "publish:aws": "npm publish -w @kleanjs/aws-lambda --access public",
+    "publish:all": "npm publish --workspaces --access public"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
