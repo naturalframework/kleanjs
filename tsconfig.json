@@ -1,13 +1,9 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "es2022",
-    "module": "NodeNext",
-    "outDir": "./dist",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@kleanjs/*": ["./packages/*/src/index.ts"],
+    },
   },
-  "include": ["src/**/*"] /* Include all files in the "src" directory */,
-  "exclude": ["node_modules"] /* Exclude the node_modules directory */,
+  "include": ["packages/*/src/**/*"],
 }

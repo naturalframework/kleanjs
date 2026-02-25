@@ -1,0 +1,30 @@
+{
+  "name": "@kleanjs/aws-lambda",
+  "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./apigateway": {
+      "types": "./dist/apigateway/index.d.ts",
+      "import": "./dist/apigateway/index.mjs",
+      "require": "./dist/apigateway/index.cjs"
+    },
+    "./sqs": {
+      "types": "./dist/sqs/index.d.ts",
+      "import": "./dist/sqs/index.mjs",
+      "require": "./dist/sqs/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "pkgroll --minify"
+  },
+  "dependencies": {
+    "@kleanjs/core": "0.4.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.159",
+    "pkgroll": "^2.21.4",
+    "typescript": "^5.9.3"
+  }
+}

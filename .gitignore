@@ -2,17 +2,18 @@
 node_modules/
 
 # Build artifacts
-/dist
-/build
-/*.js
-/*.js.map
+dist
+build
+*.js
+*.js.map
+.turbo
 
 # Environment files
 .env
 .env.local
 
 # Testing and coverage
-/coverage
+coverage
 
 # Editors
 .DS_Store # macOS

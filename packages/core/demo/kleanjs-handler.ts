@@ -12,5 +12,8 @@ export const handler = middleware(
     validators: {
       body: userSchema,
     },
+    transformers: {
+      body: (ev: any) => JSON.parse(ev.body),
+    },
   },
 );

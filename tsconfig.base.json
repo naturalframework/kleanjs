@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    /* Emisión de tipos para el Workspace */
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    /* Optimización de Monorepo */
+    "composite": true,
+    "incremental": true,
+    /* Node v24 Performance */
+    "lib": ["es2022", "esnext.disposable"],
+  },
+}
